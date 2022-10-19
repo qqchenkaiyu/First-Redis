@@ -10,6 +10,9 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 
 /**
  * 提供方法存储数据 返回数据的offset
@@ -27,7 +30,7 @@ public class DataManager {
 
     public DataItem read(long offset) throws Exception {
         channel.position(offset);
-        return next();
+        return nextData();
     }
 
     public long insert(byte[] data) throws Exception {
@@ -45,8 +48,11 @@ public class DataManager {
         channel.position(i);
     }
 
-    public DataItem next() throws IOException {
-        if(channel.size() == channel.position())return null;
+    public boolean isRemaining() throws IOException {
+        return channel.size() == channel.position();
+    }
+    public DataItem nextData() throws IOException {
+        if(isRemaining())return null;
         short size = getShort();
         ByteBuffer data = ByteBuffer.allocate(size);
         data.order(ByteOrder.LITTLE_ENDIAN);
@@ -54,6 +60,8 @@ public class DataManager {
         data.rewind();
         return new DataItem(size,data);
     }
+
+
 
     public DataItem next(ByteBuffer buffer) throws IOException {
         if(!buffer.hasRemaining())return null;
@@ -70,4 +78,71 @@ public class DataManager {
         channel.read(buf);
         return ByteUtil.bytesToShort(buf.array());
     }
+    public HashMap<String, String> nextMap() throws IOException {
+        ByteBuffer buffer = nextData().getBuffer();
+        return unWarpToMap(buffer);
+    }
+    public HashMap<String, HashMap<String, String>> nextMapMap() throws IOException {
+        ByteBuffer buffer = nextData().getBuffer();
+        HashMap<String, HashMap<String, String>> map = new HashMap<>();
+        while (buffer.hasRemaining()){
+            DataItem key = next(buffer);
+            DataItem value = next(buffer);
+            map.put(new String(key.getBuffer().array()),unWarpToMap(value.getBuffer()));
+        }
+        return map;
+    }
+    public HashMap<String, LinkedList<String>> nextListMap() throws IOException {
+        ByteBuffer buffer = nextData().getBuffer();
+        HashMap<String, LinkedList<String>> map = new HashMap<>();
+        while (buffer.hasRemaining()){
+            DataItem key = next(buffer);
+            DataItem value = next(buffer);
+            map.put(new String(key.getBuffer().array()),unWarpToList(value.getBuffer()));
+        }
+        return map;
+    }
+
+    public HashMap<String, HashSet<String>> nextSetMap() throws IOException {
+        ByteBuffer buffer = nextData().getBuffer();
+        HashMap<String, HashSet<String>> map = new HashMap<>();
+        while (buffer.hasRemaining()){
+            DataItem key = next(buffer);
+            DataItem value = next(buffer);
+            map.put(new String(key.getBuffer().array()),unWarpToHashSet(value.getBuffer()));
+        }
+        return map;
+    }
+
+    private HashSet<String> unWarpToHashSet(ByteBuffer buffer) throws IOException {
+        HashSet<String> set = new HashSet<String>();
+        while (buffer.hasRemaining()){
+            DataItem key = next(buffer);
+            set.add(new String(key.getBuffer().array()));
+        }
+        return set;
+    }
+    //所有unwrap方法不带有长度
+
+    private HashMap<String, String> unWarpToMap(ByteBuffer buffer) throws IOException {
+        HashMap<String, String> map = new HashMap<>();
+        while (buffer.hasRemaining()){
+            DataItem key = next(buffer);
+            DataItem value = next(buffer);
+            map.put(new String(key.getBuffer().array()),new String(value.getBuffer().array()));
+        }
+        return map;
+    }
+
+    private LinkedList<String> unWarpToList(ByteBuffer buffer) throws IOException {
+        LinkedList<String> linkedList = new LinkedList<>();
+        while (buffer.hasRemaining()){
+            DataItem key = next(buffer);
+            linkedList.add(new String(key.getBuffer().array()));
+        }
+        return linkedList;
+    }
+
+
+
 }
