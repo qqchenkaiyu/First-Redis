@@ -19,8 +19,8 @@ public class DataManager {
     // 持有一个文件
     FileChannel channel;
 
-    public DataManager(String tableName) {
-        RandomAccessFile randomAccessFile = FileUtil.createRandomAccessFile(FileUtil.file(tableName + ".tb"),
+    public DataManager(String fileName) {
+        RandomAccessFile randomAccessFile = FileUtil.createRandomAccessFile(FileUtil.file(fileName ),
             FileMode.rw);
         channel = randomAccessFile.getChannel();
     }
@@ -34,7 +34,6 @@ public class DataManager {
         long size = channel.size();
         byte[] concat = Bytes.concat(ByteUtil.shortToBytes((short) data.length), data);
         channel.write(ByteBuffer.wrap(concat), size);
-
         return size;
     }
 
@@ -48,13 +47,27 @@ public class DataManager {
 
     public DataItem next() throws IOException {
         if(channel.size() == channel.position())return null;
-        ByteBuffer buf = ByteBuffer.allocate(2);
-        channel.read(buf);
-        short size = ByteUtil.bytesToShort(buf.array());
+        short size = getShort();
         ByteBuffer data = ByteBuffer.allocate(size);
         data.order(ByteOrder.LITTLE_ENDIAN);
         channel.read(data);
         data.rewind();
         return new DataItem(size,data);
+    }
+
+    public DataItem next(ByteBuffer buffer) throws IOException {
+        if(!buffer.hasRemaining())return null;
+        short size = getShort();
+        ByteBuffer data = ByteBuffer.allocate(size);
+        data.order(ByteOrder.LITTLE_ENDIAN);
+        channel.read(data);
+        data.rewind();
+        return new DataItem(size,data);
+    }
+
+    public short getShort() throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(2);
+        channel.read(buf);
+        return ByteUtil.bytesToShort(buf.array());
     }
 }
